@@ -1,5 +1,3 @@
-
-
 unit = 254
 unit = unit/2
 
@@ -11,19 +9,8 @@ memState = []
 memResult = []
 memPlan = []
 
-threshold = 0.8
-
-urgency= (limit, threshold, now) ->
-    urgncy = Math.abs(limit*threshold-now)
-    say = ""
-    for i in [0...urgncy]
-        exponential = Math.pow 2,i
-        for letter in [0...exponential]
-            say = say+"!"
-    return exponential
-
 lowerEnergy= ->
-    nowEnergy -= 1
+    nowEnergy -= 3
 
 # Entropie
 setInterval lowerEnergy, 1000
@@ -33,10 +20,8 @@ class Brain
     constructor: ->
         @trust = 111
         @id = generateUUID()
-        @puls = 1000
-
-    born: ->
-        setInterval @live, @puls
+        @puls = 10
+        @awareness = setInterval @live, @puls
 
     checkState: ->
         nowState = new State
@@ -44,10 +29,42 @@ class Brain
         memState.push nowState
         return nowState
 
+    calcEnergyTendence: ->
+        tendenceEnergy = 0
+        for i in [0...memState.length-1]
+            for values in memState[i]
+                console.log "attribute: #{attribute}"
+        #   console.log "#{memState[i+1].energy} - #{memState[i].energy}"
+            tendenceEnergy += memState[i+1].energy-memState[i].energy
+        tendenceEnergy=tendenceEnergy/memState.length
+        if nowEnergy > 0
+            tendenceEnergy+=1
+        tendenceEnergy=Math.round(tendenceEnergy)
+        #console.info tendenceEnergy
+        return tendenceEnergy
+
+    urgency: (limit, threshold, now) ->
+        urgncy = Math.abs(now/limit*threshold)
+        return urgncy
+
+    die: ->
+        @puls = 0
+        console.log "DEAD!!!!!!!!!!!!!!!!!!!!!!!!!!"
+        return @puls
+
     live: =>
+        urgency = @urgency maxEnergy, 0.8, nowEnergy
+        newPuls = @puls/(urgency*urgency)
+        if newPuls>1000
+            newPuls=1000
+
         ################################
-        if nowEnergy == minEnergy
-            return
+        if nowEnergy <= minEnergy
+            newPuls = @die()
+            clearInterval @awareness
+        if nowEnergy >= maxEnergy
+            newPuls = @die()
+            clearInterval @awareness
         ################################
         meme = memPlan.shift()
         console.log meme
@@ -65,11 +82,10 @@ class Brain
         # update how much we trust this concept
         if result.energy isnt meme.expectedResult.energy
             console.log "unexpected energylevel! #{meme.expectedResult.energy}=#{result.energy}"
-            meme.trust -= 1
+            meme.trust -= Math.abs(result.energy-meme.expectedResult.energy)
         else
             console.log "expected energylevel! #{meme.expectedResult.energy}=#{result.energy} Im so good!"
             meme.trust += 1
-
 
         # save the Result of this run
         updatedMeme = new Meme meme, meme.task, result
@@ -87,21 +103,16 @@ class Brain
             olderRun = memResult[memResult.length-2]
             diffRun = olderRun.time - oldRun.time
             idleTime = Math.abs(diffRun)-meme.duration
-            # I Overload 5% tolerance
-            if @puls/diffRun > -0.95
-                panic = yes
+            console.log "idleTime: #{idleTime}"
 
-        # If we panic we will do something! no matter what!
+        # if we have more than 2 states we can start
+        # comparing, predicting, planing, and optimizing
         if memState.length > 2
-            tendenceEnergy = 0
-            for i in [0...memState.length-1]
-                tendenceEnergy += memState[i+1].energy-memState[i].energy
-            tendenceEnergy=tendenceEnergy/memState.length
-            tendenceEnergy=Math.round(tendenceEnergy)
-            
+            #console.log "memState.length: #{memState.length}"
+            tendenceEnergy = @calcEnergyTendence()
             if tendenceEnergy < 0 
                 if panic is yes and nowEnergy < 0
-                    console.error "PANIC!!! #{@puls/realPuls}"
+                    console.error "PANIC!!! #{@puls/diffRun}"
                     updatedMeme.expectedResult.energy += tendenceEnergy
                     memPlan.push updatedMeme
                 else
@@ -133,7 +144,7 @@ class Brain
 
             if tendenceEnergy > 0 
                 if panic is yes and nowEnergy > 0
-                    console.error "PANIC!!! #{@puls/realPuls}"    
+                    console.error "PANIC!!! #{newPuls}"    
                     updatedMeme.expectedResult.energy += tendenceEnergy
                     memPlan.push updatedMeme
                 else
@@ -146,6 +157,17 @@ class Brain
         # # we have no memory of states... Amnesia?
         else
             memPlan.push updatedMeme
+
+        if memState.length >= Math.round(updatedMeme.trust/10)
+            memState.shift()
+
+        # adjust the pulse
+        if newPuls isnt @puls
+            console.log "adjust pulse: #{newPuls}"
+            clearInterval @awareness
+            @awareness = setInterval @live, newPuls
+
+
     
 
 #
@@ -174,27 +196,17 @@ class State
         @energy = 0
         @position = [0,0,0]
         @time = (new Date).getTime()
-
-class memTask
-
-    raise: ->
-        console.log "Ich verbrenne Fett zu Energie!"
-        costEnergy = +1
-        nowEnergy += costEnergy
-
-    idle: ->
-        console.log "Ich idle!"
+        @values = [@time, @temperature ,@energy ,@position[0],@position[1],@position[2]]
 
 
 Me = new Brain
-# Memory of tasks
-memTask = new memTask
 
-# Meme of checking energy
-raiseEnergyMeme = new Meme Me, "memTask.raise()",new State
-idleMeme = new Meme Me, "memTask.idle()",new State
-
+# This meme means EATING!
+tempMeme = new Meme Me, "nowEnergy+=1; console.log('Ich esse!');",new State
+memResult.push tempMeme
+# This memm means MEDITATION!
+tempMeme = new Meme Me, "console.log('Ich idle!');",new State
+memResult.push tempMeme
 # Plan for life
-memPlan.push idleMeme
+memPlan.push tempMeme
 
-Me.born()
