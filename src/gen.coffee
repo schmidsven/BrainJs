@@ -1,20 +1,45 @@
-unit = 254
-unit = unit/2
+# attach the .equals method to Array's prototype to call it on any array
 
-maxEnergy = unit
-minEnergy = -unit
+Array::equals = (array) ->
+  # if the other array is a falsy value, return
+  if !array
+    return false
+  # compare lengths - can save a lot of time 
+  if @length != array.length
+    return false
+  i = 0
+  l = @length
+  while i < l
+    # Check if we have nested arrays
+    if @[i] instanceof Array and array[i] instanceof Array
+      # recurse into the nested arrays
+      if !@[i].equals(array[i])
+        return false
+    else if @[i] != array[i]
+      # Warning - two different object instances will never be equal: {x:20} != {x:20}
+      return false
+    i++
+  true
 
-nowEnergy = 0
-memState = []
-memResult = []
-memPlan = []
+Array::diff = (array) ->
+    # if the other array is a falsy value, return
+    if !array
+        return "!array"
+    # compare lengths - can save a lot of time 
+    if @length != array.length
+        return "@length != array.length"
+    i = 0
+    l = @length
+    returnArray = []
+    while i < l
+        # Check if we have nested arrays
+        returnArray[i] =  @[i] - array[i]
+        if @[i] instanceof Array and array[i] instanceof Array
+            returnArray[i] = @[i].diff array[i]
+        i++
+    return returnArray
 
-lowerEnergy= ->
-    nowEnergy -= 3
-
-# Entropie
-setInterval lowerEnergy, 1000
-
+##################################### END IF OVERRIDES #######################################
 
 class Brain
     constructor: ->
@@ -25,23 +50,36 @@ class Brain
 
     checkState: ->
         nowState = new State
-        nowState.energy = nowEnergy
+        nowState.values[1] = nowEnergy
         memState.push nowState
         return nowState
 
-    calcEnergyTendence: ->
-        tendenceEnergy = 0
-        for i in [0...memState.length-1]
-            for values in memState[i]
-                console.log "attribute: #{attribute}"
-        #   console.log "#{memState[i+1].energy} - #{memState[i].energy}"
-            tendenceEnergy += memState[i+1].energy-memState[i].energy
-        tendenceEnergy=tendenceEnergy/memState.length
-        if nowEnergy > 0
-            tendenceEnergy+=1
-        tendenceEnergy=Math.round(tendenceEnergy)
-        #console.info tendenceEnergy
-        return tendenceEnergy
+    calcTendence: ->
+        # The saved States and their values
+        console.info memState.length
+        stateDiff = []
+        avgValues=[]
+        for state in memState
+            if oldState?
+                stateDiff.unshift state.values.diff(oldState.values)
+                console.info state.values.diff(oldState.values)
+            oldState=state
+
+        # The diffs of the States, should bi 1 less than the States
+        console.info stateDiff.length
+        for values in stateDiff
+            i=0
+            for value in values
+                if avgValues[i]?
+                    avgValues[i]=0
+                avgValues[i]+=value
+                console.info values[i]
+                console.info avgValues[i]
+
+        for value in values
+            value=value/values.length
+        console.info values
+        return values
 
     urgency: (limit, threshold, now) ->
         urgncy = Math.abs(now/limit*threshold)
@@ -49,7 +87,7 @@ class Brain
 
     die: ->
         @puls = 0
-        console.log "DEAD!!!!!!!!!!!!!!!!!!!!!!!!!!"
+        console.error "DEAD!!!!!!!!!!!!!!!!!!!!!!!!!!"
         return @puls
 
     live: =>
@@ -80,17 +118,17 @@ class Brain
         meme.duration = endTime-startTime
 
         # update how much we trust this concept
-        if result.energy isnt meme.expectedResult.energy
-            console.log "unexpected energylevel! #{meme.expectedResult.energy}=#{result.energy}"
-            meme.trust -= Math.abs(result.energy-meme.expectedResult.energy)
+        if result.values[1] isnt meme.expectedResult.values[1]
+            console.log "unexpected energylevel! #{meme.expectedResult.values[1]}=#{result.values[1]}"
+            meme.trust -= Math.abs(result.values[1]-meme.expectedResult.values[1])
         else
-            console.log "expected energylevel! #{meme.expectedResult.energy}=#{result.energy} Im so good!"
+            console.log "expected energylevel! #{meme.expectedResult.values[1]}=#{result.values[1]} Im so good!"
             meme.trust += 1
 
         # save the Result of this run
         updatedMeme = new Meme meme, meme.task, result
         updatedMeme.duration = meme.duration
-        memResult.push updatedMeme
+        memOry.push updatedMeme
 
         ##################################
         ## What to do next ??? ###########
@@ -98,25 +136,25 @@ class Brain
 
         panic = no
         # find out how much idle time we will have
-        if memResult.length > 1
-            oldRun = memResult[memResult.length-1]          
-            olderRun = memResult[memResult.length-2]
-            diffRun = olderRun.time - oldRun.time
+        if memOry.length > 1
+            oldRun = memOry[memOry.length-1]          
+            olderRun = memOry[memOry.length-2]
+            diffRun = olderRun.expectedResult.values[0] - oldRun.expectedResult.values[0]
             idleTime = Math.abs(diffRun)-meme.duration
             console.log "idleTime: #{idleTime}"
 
         # if we have more than 2 states we can start
         # comparing, predicting, planing, and optimizing
-        if memState.length > 2
+        if memState.length > 4
             #console.log "memState.length: #{memState.length}"
-            tendenceEnergy = @calcEnergyTendence()
-            if tendenceEnergy < 0 
+            tendenceState = @calcTendence()
+            if tendenceState[1] < 0 
                 if panic is yes and nowEnergy < 0
                     console.error "PANIC!!! #{@puls/diffRun}"
-                    updatedMeme.expectedResult.energy += tendenceEnergy
+                    updatedMeme.expectedResult.values[1] += tendenceState[1]
                     memPlan.push updatedMeme
                 else
-                    updatedMeme.expectedResult.energy += tendenceEnergy
+                    updatedMeme.expectedResult.values[1] += tendenceState[1]
                     memPlan.push updatedMeme
 
                 
@@ -142,23 +180,23 @@ class Brain
                 # if our selftrust is higher than the memetrust
                 # PLAN THE MEMES IN A NEW MEME! Not directly in the main memPlan
 
-            if tendenceEnergy > 0 
+            if tendenceState[1] > 0 
                 if panic is yes and nowEnergy > 0
                     console.error "PANIC!!! #{newPuls}"    
-                    updatedMeme.expectedResult.energy += tendenceEnergy
+                    updatedMeme.expectedResult.values[1] += tendenceState[1]
                     memPlan.push updatedMeme
                 else
-                    updatedMeme.expectedResult.energy += tendenceEnergy
+                    updatedMeme.expectedResult.values[1] += tendenceState[1]
                     memPlan.push updatedMeme
 
-            if tendenceEnergy is 0
+            if tendenceState[1] is 0
                 memPlan.push updatedMeme
 
         # # we have no memory of states... Amnesia?
         else
             memPlan.push updatedMeme
 
-        if memState.length >= Math.round(updatedMeme.trust/10)
+        if memState.length >= Math.round(updatedMeme.trust/15)
             memState.shift()
 
         # adjust the pulse
@@ -166,10 +204,7 @@ class Brain
             console.log "adjust pulse: #{newPuls}"
             clearInterval @awareness
             @awareness = setInterval @live, newPuls
-
-
     
-
 #
 # A thought or cascade of thoughts or concept
 # @origin: I know where this thought came about ...
@@ -192,21 +227,47 @@ class Meme
 class State
     constructor: ->
         #console.log "State constructor ***"
-        @temperature = 0
-        @energy = 0
-        @position = [0,0,0]
-        @time = (new Date).getTime()
-        @values = [@time, @temperature ,@energy ,@position[0],@position[1],@position[2]]
+        @values = [(new Date).getTime(),0,0,0,0,0]
 
+
+######################################## GENE ###################################################
 
 Me = new Brain
 
-# This meme means EATING!
+# Initializing Memories of the Brain
+memState = [] # Awareness (Saving the state over a reduced time)
+memOry = []   # Longterm Memory containing Memes (What was done, how was the state)
+memPlan = []  # Future plan containing Memes (What to do, what state to expect)
+
+##---------------------------------------------------------------------------------
+##           THIS IS FAKESTUFF NEEDED AS LONG AS THIS IS SOFTWARE
+##---------------------------------------------------------------------------------
+# Currently i don't dynamically adjust statevalues
+unit = 254
+unit = unit/2
+# Currently i have no percentage or some battery i can read out so i have to set
+# maximum and minimum values and the value at birth
+maxEnergy = unit
+minEnergy = -unit
+nowEnergy = 0
+# - - - - - - - - - - - - - - INCEPTION - - - - - - - - - - - - - - - - - - - - - -
+# This meme means EATING! Since we don't have a environment yet that could transfer
+# energy to us
 tempMeme = new Meme Me, "nowEnergy+=1; console.log('Ich esse!');",new State
-memResult.push tempMeme
+memOry.push tempMeme
+##---------------------------------------------------------------------------------
+
 # This memm means MEDITATION!
 tempMeme = new Meme Me, "console.log('Ich idle!');",new State
-memResult.push tempMeme
 # Plan for life
 memPlan.push tempMeme
+
+
+
+######################################## ENVIRONMENT ############################################
+lowerEnergy= ->
+    nowEnergy -= 3
+
+# Entropie
+setInterval lowerEnergy, 1000
 
