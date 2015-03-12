@@ -39,6 +39,16 @@ Array::diff = (array) ->
         i++
     return returnArray
 
+between = (a, b) ->
+  if a > b
+    this >= b and this <= a
+  else
+    this >= a and this <= b
+
+Number::between = between
+String::between = between
+Date::between = between
+
 ##################################### END IF OVERRIDES #######################################
 
 class Brain
@@ -48,46 +58,40 @@ class Brain
         @puls = 10
         @awareness = setInterval @live, @puls
 
-    checkState: ->
-        nowState = new State
-        nowState.values[1] = nowEnergy
-        memState.push nowState
-        return nowState
+    getState: ->
+        state = []
+        state.push (new Date).getTime()
+        state.push nowEnergy
+        memState.push state
+        return state
 
     calcTendence: ->
         # The saved States and their values
-        console.info memState.length
-        stateDiff = []
+        #console.info memState.length
+        sumValues=[]
         avgValues=[]
         for state in memState
-            if oldState?
-                stateDiff.unshift state.values.diff(oldState.values)
-                console.info state.values.diff(oldState.values)
-            oldState=state
-
-        # The diffs of the States, should bi 1 less than the States
-        console.info stateDiff.length
-        for values in stateDiff
-            i=0
-            for value in values
-                if avgValues[i]?
-                    avgValues[i]=0
-                avgValues[i]+=value
-                console.info values[i]
-                console.info avgValues[i]
-
-        for value in values
-            value=value/values.length
-        console.info values
-        return values
+            if not oldState?
+                oldState=state
+            else
+                i=0
+                for value in state.diff(oldState)
+                    if sumValues[i]?
+                        sumValues[i]=0
+                    sumValues[i]+=value
+                    i+=1
+                oldState=state
+        for value in sumValues
+            avgValues.push value/sumValues.length
+        return avgValues
 
     urgency: (limit, threshold, now) ->
         urgncy = Math.abs(now/limit*threshold)
         return urgncy
 
-    die: ->
+    die: (age)->
         @puls = 0
-        console.error "DEAD!!!!!!!!!!!!!!!!!!!!!!!!!!"
+        console.error "#{Me.id} DIED in the age of #{age}seconds !!!!!!!!!!!!!!!!!!!!!!!!!!"
         return @puls
 
     live: =>
@@ -98,48 +102,43 @@ class Brain
 
         ################################
         if nowEnergy <= minEnergy
-            newPuls = @die()
+            age = (memOry[memOry.length-1].time-memOry[0].time)/1000
+            newPuls = @die(age)
             clearInterval @awareness
         if nowEnergy >= maxEnergy
-            newPuls = @die()
+            newPuls = @die(age)
             clearInterval @awareness
         ################################
-        meme = memPlan.shift()
-        console.log meme
         
-        # start Timemeasurement to find out duration of the task
-        startTime = (new Date).getTime()
-        # run the task
-        # for i in meme.task
-        eval(meme.task)
-        result = @checkState()
-        console.log result
-        endTime = (new Date).getTime()
-        meme.duration = endTime-startTime
+        #------------------ Run the meme
+        meme = memPlan.shift()
+        meme.run()
+        currentState = @getState()
+        console.log currentState
 
+        #------------------ Check the result
         # update how much we trust this concept
-        if result.values[1] isnt meme.expectedResult.values[1]
-            console.log "unexpected energylevel! #{meme.expectedResult.values[1]}=#{result.values[1]}"
-            meme.trust -= Math.abs(result.values[1]-meme.expectedResult.values[1])
-        else
-            console.log "expected energylevel! #{meme.expectedResult.values[1]}=#{result.values[1]} Im so good!"
-            meme.trust += 1
+        tolerance=0.05
 
-        # save the Result of this run
-        updatedMeme = new Meme meme, meme.task, result
+        if currentState[1].between meme.expectedState[1]*(1-tolerance), meme.expectedState[1]*(1+tolerance)
+            meme.trust += 1
+        else
+            console.error "unexpected energylevel! #{meme.expectedState[1]}=#{currentState[1]}"
+            meme.trust -= Math.abs(currentState[1]-meme.expectedState[1])
+
+        #------------------ save as a new meme in memory (experience)
+        updatedMeme = new Meme meme, meme.task, currentState
         updatedMeme.duration = meme.duration
         memOry.push updatedMeme
 
-        ##################################
-        ## What to do next ??? ###########
-        ##################################
+        #------------------ What to do next ???
 
         panic = no
         # find out how much idle time we will have
         if memOry.length > 1
             oldRun = memOry[memOry.length-1]          
             olderRun = memOry[memOry.length-2]
-            diffRun = olderRun.expectedResult.values[0] - oldRun.expectedResult.values[0]
+            diffRun = olderRun.expectedState[0] - oldRun.expectedState[0]
             idleTime = Math.abs(diffRun)-meme.duration
             console.log "idleTime: #{idleTime}"
 
@@ -149,13 +148,8 @@ class Brain
             #console.log "memState.length: #{memState.length}"
             tendenceState = @calcTendence()
             if tendenceState[1] < 0 
-                if panic is yes and nowEnergy < 0
-                    console.error "PANIC!!! #{@puls/diffRun}"
-                    updatedMeme.expectedResult.values[1] += tendenceState[1]
-                    memPlan.push updatedMeme
-                else
-                    updatedMeme.expectedResult.values[1] += tendenceState[1]
-                    memPlan.push updatedMeme
+                updatedMeme.expectedState[1] += tendenceState[1]
+                memPlan.push updatedMeme
 
                 
                 # EFFECTIVE ---------------------------------
@@ -181,13 +175,8 @@ class Brain
                 # PLAN THE MEMES IN A NEW MEME! Not directly in the main memPlan
 
             if tendenceState[1] > 0 
-                if panic is yes and nowEnergy > 0
-                    console.error "PANIC!!! #{newPuls}"    
-                    updatedMeme.expectedResult.values[1] += tendenceState[1]
-                    memPlan.push updatedMeme
-                else
-                    updatedMeme.expectedResult.values[1] += tendenceState[1]
-                    memPlan.push updatedMeme
+                updatedMeme.expectedState[1] += tendenceState[1]
+                memPlan.push updatedMeme
 
             if tendenceState[1] is 0
                 memPlan.push updatedMeme
@@ -207,27 +196,32 @@ class Brain
     
 #
 # A thought or cascade of thoughts or concept
-# @origin: I know where this thought came about ...
 # @trust:  I have a certain trust of the outcome ...
-# @result: I expect a outcome of this which is ...
-#  
+# @origin: I know where this thought came about ...
+# @task:   Thinking is doing, a task is the smallest thing i can DO, the output!
+#          What i can do is defined by my "bodymuscles"
+# @duration: It's the duration the task took last time 
+# @expectedState: I expect a outcome of this which is a predicted(or guessed) state
+# @time: timestamp for the meme (and the state)
 class Meme 
-    constructor: (origin,task,expectedResult) ->
+    constructor: (origin,task,expectedState) ->
         @id = generateUUID()
         @trust = origin.trust
         @origin = origin.id
         @task = task
-        @expectedResult = expectedResult
-        @time = (new Date).getTime()
         @duration = undefined
-
-#
-# My current state depending on sensory input
-#
-class State
-    constructor: ->
-        #console.log "State constructor ***"
-        @values = [(new Date).getTime(),0,0,0,0,0]
+        @expectedState = expectedState
+        @time = (new Date).getTime()
+    
+    run: =>
+        # start Timemeasurement to find out duration of the task
+        startTime = (new Date).getTime()
+        # run the task
+        # for i in meme.task
+        eval(@task)
+        endTime = (new Date).getTime()
+        @duration = endTime-startTime
+        console.log @task
 
 
 ######################################## GENE ###################################################
@@ -253,12 +247,12 @@ nowEnergy = 0
 # - - - - - - - - - - - - - - INCEPTION - - - - - - - - - - - - - - - - - - - - - -
 # This meme means EATING! Since we don't have a environment yet that could transfer
 # energy to us
-tempMeme = new Meme Me, "nowEnergy+=1; console.log('Ich esse!');",new State
+tempMeme = new Meme Me, "nowEnergy+=1; console.log('Ich esse!');", Me.getState()
 memOry.push tempMeme
 ##---------------------------------------------------------------------------------
 
 # This memm means MEDITATION!
-tempMeme = new Meme Me, "console.log('Ich idle!');",new State
+tempMeme = new Meme Me, "console.log('Ich idle!');", Me.getState()
 # Plan for life
 memPlan.push tempMeme
 
