@@ -56,7 +56,7 @@ class Brain
         @trust = 111
         @id = generateUUID()
         @puls = 10
-        @awareness = setInterval @live, @puls
+        @conciousness = setInterval @live, @puls
 
     getState: ->
         state = []
@@ -95,36 +95,38 @@ class Brain
         return @puls
 
     live: =>
-        urgency = @urgency maxEnergy, 0.8, nowEnergy
-        newPuls = @puls/(urgency*urgency)
-        if newPuls>1000
-            newPuls=1000
 
-        ################################
-        if nowEnergy <= minEnergy
-            age = (memOry[memOry.length-1].time-memOry[0].time)/1000
-            newPuls = @die(age)
-            clearInterval @awareness
-        if nowEnergy >= maxEnergy
-            newPuls = @die(age)
-            clearInterval @awareness
-        ################################
-        
         #------------------ Run the meme
         meme = memPlan.shift()
         meme.run()
         currentState = @getState()
+        console.log meme
         console.log currentState
 
         #------------------ Check the result
         # update how much we trust this concept
         tolerance=0.05
-
         if currentState[1].between meme.expectedState[1]*(1-tolerance), meme.expectedState[1]*(1+tolerance)
             meme.trust += 1
+            newPuls = @puls+10
         else
-            console.error "unexpected energylevel! #{meme.expectedState[1]}=#{currentState[1]}"
-            meme.trust -= Math.abs(currentState[1]-meme.expectedState[1])
+            console.error "unexpected value! #{meme.expectedState[1]}=#{currentState[1]}"
+            diff=currentState[1]-meme.expectedState[1]
+            meme.trust -= Math.abs(diff)
+            newPuls = @puls-diff
+
+        if newPuls>1000
+            newPuls=1000
+        ################################
+        if nowEnergy <= minEnergy
+            age = (memOry[memOry.length-1].time-memOry[0].time)/1000
+            newPuls = @die(age)
+            clearInterval @conciousness
+        if nowEnergy >= maxEnergy
+            newPuls = @die(age)
+            clearInterval @conciousness
+        ################################
+
 
         #------------------ save as a new meme in memory (experience)
         updatedMeme = new Meme meme, meme.task, currentState
@@ -132,14 +134,13 @@ class Brain
         memOry.push updatedMeme
 
         #------------------ What to do next ???
-
         panic = no
         # find out how much idle time we will have
         if memOry.length > 1
-            oldRun = memOry[memOry.length-1]          
-            olderRun = memOry[memOry.length-2]
-            diffRun = olderRun.expectedState[0] - oldRun.expectedState[0]
-            idleTime = Math.abs(diffRun)-meme.duration
+            oldMeme = memOry[memOry.length-1]          
+            olderMeme = memOry[memOry.length-2]
+            diffMeme = olderMeme.time - oldMeme.time
+            idleTime = Math.abs(diffMeme)-meme.duration
             console.log "idleTime: #{idleTime}"
 
         # if we have more than 2 states we can start
@@ -190,9 +191,10 @@ class Brain
 
         # adjust the pulse
         if newPuls isnt @puls
+            @puls = newPuls
             console.log "adjust pulse: #{newPuls}"
-            clearInterval @awareness
-            @awareness = setInterval @live, newPuls
+            clearInterval @conciousness
+            @conciousness = setInterval @live, @puls
     
 #
 # A thought or cascade of thoughts or concept
