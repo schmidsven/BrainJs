@@ -111,13 +111,11 @@ class Brain
         # calculate my age...just for fun
         age = (memOry[memOry.length-1].time-memOry[0].time)/1000
         # How much the state may differ from prediction
-        tolerance=0.03
+        tolerance=0.002*memState.length
         #------------------ Run the meme
         meme = memPlan.shift()
         meme.run()
         currentState = @getState()
-        console.log meme.trust
-        #console.log currentState
 
         #------------------ Check the result
         # update how much we trust this concept
@@ -125,12 +123,13 @@ class Brain
         newPulse = @pulse
         for value in [0...currentState.length]
             if currentState[value].between meme.expectedState[value]*(1-tolerance), meme.expectedState[value]*(1+tolerance)
-                #console.info "expected value! #{meme.expectedState[value]}=#{currentState[value]}"
-                meme.trust += memState.length
+                console.info "expected value! #{meme.expectedState[value]}=#{currentState[value]}"
+                meme.trust += meme.trust/10
             else
                 console.error "unexpected value! #{meme.expectedState[value]}=#{currentState[value]}"
-                diff += currentState[value]-meme.expectedState[value]
-        meme.trust -= Math.abs(diff)
+                diff = currentState[value]-meme.expectedState[value]
+                meme.trust -= meme.trust/10
+        
         if meme.trust < min 
             meme.trust = min
         if meme.trust > max 
@@ -148,7 +147,7 @@ class Brain
         if nowEnergy >= max
             newPulse = @die(age)
             clearInterval @conciousness
-        ################################
+        #########################################
 
 
         #------------------ save as a new meme in memory (experience)
@@ -163,10 +162,6 @@ class Brain
             idleTime  = Math.abs(diffMeme)-meme.duration
             console.log "idleTime: #{idleTime}"
 
-
-
-        # XXX this no good
-        i=1
         # if we have more than 2 states we can start
         # comparing, predicting, planing, and optimizing
         if memState.length > 2
@@ -208,14 +203,14 @@ class Brain
         # the trust of the outcome of this memes task
         # lower trust = less data in memState = faster prediction
         # XXX maybe also take the pulse in account here
-        console.log "memState.length: #{memState.length}"
-        if memState.length <= meme.trust/5
+        console.log "Drop it when it's #{93-(meme.trust/unit*90)} #{memState.length}"
+        while memState.length > 93-(meme.trust/unit*90)
             memState.shift()
 
         # adjust the pulse
         if newPulse isnt @pulse
             @pulse = newPulse
-            console.log "adjust pulse: #{newPulse}"
+            #console.log "adjust pulse: #{newPulse}"
             clearInterval @conciousness
             @conciousness = setInterval @live, @pulse
     
@@ -253,10 +248,6 @@ class Meme
 
 Me = new Brain
 
-# Initializing Memories of the Brain
-memState = [] # Awareness (Saving the state over a reduced time)
-memOry = []   # Longterm Memory containing Memes (What was done, how was the state)
-memPlan = []  # Future plan containing Memes (What to do, what state to expect)
 
 ##---------------------------------------------------------------------------------
 ##           THIS IS FAKESTUFF NEEDED AS LONG AS THIS IS SOFTWARE
@@ -267,7 +258,12 @@ unit = 254
 # maximum and minimum values and the value at birth
 max = unit
 min = 0
-nowEnergy = 100
+nowEnergy = 200
+
+# Initializing Memories of the Brain
+memState = [] # Awareness (Saving the state over a reduced time)
+memOry = []   # Longterm Memory containing Memes (What was done, how was the state)
+memPlan = []  # Future plan containing Memes (What to do, what state to expect)
 # - - - - - - - - - - - - - - INCEPTION - - - - - - - - - - - - - - - - - - - - - -
 # This meme means EATING! Since we don't have a environment yet that could transfer
 # energy to us
