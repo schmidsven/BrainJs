@@ -326,3 +326,126 @@ lowerEnergy= ->
 # Entropie
 setInterval lowerEnergy, 1000
 
+
+
+##################################### THOUGHTS ##################################################
+###
+
+Data1:      [0  ,0  ,0  ,0  ,0 ]
+Prediction: [0  ,0  ,0  ,0  ,0 ]
+Data2:      [-5 ,5  ,0  ,-1 ,1 ]
+Prediction: [-15,15 ,0  ,-3 ,3 ]
+Data1:      [-5 ,13 ,0  ,-3 ,3 ]
+Prediction: [0  ,0  ,0  ,0  ,0 ]
+
+New Prediction = Value * Prediction * Wrongness
+
+Prediction: [*3 ,*3 ,*3 ,*3 ,*3]
+Wrongness:  [0  ,0  ,0  ,0  ,0 ]
+
+Raise or lower?
+
+COSTFUNCTION
+------------
+Diff1: [-5,5,0,-1,1]
+Diff2: [10,-2,0,0,0]
+
+Not a Norm!
+average of sum of all diffs:
+    [-5,5,0,-1,1] = 0/length = 0 NO ERRORS!!! 
+    [10,-2,0,0,0]  = 8/5 = 1.6 = Wrongness
+
+L1-Norm:
+Used in Regularization called "LASSO"
+average of sum of all Abs(diffs):
+    [5,5,0,1,1] = 12/length = 2.4
+    [10,2,0,0,0]= 12/length = 2.4
+
+L2-Norm:
+Used in Regularization called "Ridge Regression"
+squareroot of sum of all diffs*diffs: 
+    [25,25,0,1,1] = sqrt(52) = 7.211
+    [100,4,0,0,0] = sqrt(104) = 10.198 
+
+Not a Norm, might produce a negative number:
+average of sum of all diffs*diffs: 
+    [25,25,0,1,1] = 52/length = 10.4
+    [100,4,0,0,0] = 104/length = 20.8 
+
+Regularization is finding the correct formula (*3 or what?) not only the correct weight(wrongness)
+For L1 and L2 in combination with Regularization.
+High values will increase the Cost.
+Whut? -> Being equally wrong on all parameters like [40,40,40,40,40]
+would lead to a high Wrongness. But the Wrongness(or weight)
+wouldn't be wrong in that case it would be JUST the function (*3)
+that should be adjusted. 
+
+Gradient Descent
+----------------
+Stochastic = random pic ONE dataset
+Minibatch  = pic a small subset of the dataset
+
+CLustering
+----------
+K-Means -> You have to know the number of clusters you want to find
+
+
+Possible implementation
+-----------------------
+
+NeuralNetwork = require('neural_network')
+nn = new NeuralNetwork
+
+trainingSetInput = [
+  [0,0]
+  [0,1]
+  [1,0]
+  [1,1]
+]
+
+trainingSetOutput = [
+  [0]
+  [1]
+  [1]
+  [0]
+]
+
+setup = 
+  trainingSetInput: trainingSetInput
+  trainingSetOutput: trainingSetOutput
+  numberOfActivationUnitsL1: 4
+  numberOfActivationUnitsL2: 4
+  numberOfNodes: 2
+  numberOfExamplesPerNode: 2
+  verboseMode: true
+  lambda: 0.0000001
+  learningRate: 1
+  maxCostError: 0.001
+  maxNoOfIterations: 1000000
+
+nn.train setup, (err, model) ->
+  predictionOptions = 
+    numberOfActivationUnitsL1: 4
+    numberOfActivationUnitsL2: 4
+    model: model
+  predictionOptions.inputVector = [0,0]
+  nn.predict predictionOptions, (err, probability) ->
+    console.log 'probability that [0,0] would be positive', probability
+    return
+  predictionOptions.inputVector = [0,1]
+  nn.predict predictionOptions, (err, probability) ->
+    console.log 'probability that [0,1] would be positive', probability
+    return
+  predictionOptions.inputVector = [1,0]
+  nn.predict predictionOptions, (err, probability) ->
+    console.log 'probability that [1,0] would be positive', probability
+    return
+  predictionOptions.inputVector = [1,1]
+  nn.predict predictionOptions, (err, probability) ->
+    console.log 'probability that [1,1] would be positive', probability
+    return
+  return
+
+
+
+###
