@@ -1,4 +1,3 @@
-coffee_src = "src/*.coffee"
 module.exports = (grunt) ->
     grunt.initConfig
 
@@ -11,6 +10,7 @@ module.exports = (grunt) ->
             dest: 'static'
             ext: '.js'
             options:
+              sourceMap: true
               bare: true
               preserve_dirs: true
      
@@ -22,12 +22,17 @@ module.exports = (grunt) ->
           options:
             livereload:true
 
+        execute:
+            target:
+                src: ['static/gen.js']
+
     grunt.loadNpmTasks "grunt-contrib-coffee"
     grunt.loadNpmTasks "grunt-contrib-watch"
     grunt.loadNpmTasks "grunt-notify"
     grunt.loadNpmTasks "grunt-available-tasks"
     grunt.loadNpmTasks "grunt-string-replace"
     grunt.loadNpmTasks "grunt-contrib-compress"
+    grunt.loadNpmTasks "grunt-execute"
 
     grunt.registerTask "default", [
         "watch"

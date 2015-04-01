@@ -10,6 +10,7 @@
     "grunt-contrib-nodeunit": "~0.4.1",
     "grunt-contrib-uglify": "~0.5.0",
     "grunt-contrib-watch": "^0.6.1",
+    "grunt-execute": "^0.2.2",
     "grunt-notify": "^0.4.1",
     "grunt-string-replace": "^1.0.0"
   }
