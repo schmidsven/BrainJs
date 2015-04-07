@@ -10,7 +10,7 @@ module.exports = (grunt) ->
             dest: 'static'
             ext: '.js'
             options:
-              sourceMap: true
+              sourceMap: false
               bare: true
               preserve_dirs: true
      
