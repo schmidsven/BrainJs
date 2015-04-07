@@ -333,7 +333,7 @@ class Brain
             }
         polynomial: (data, order) ->
             if typeof order == 'undefined'
-                order = 2
+                order = 3
             lhs = []
             rhs = []
             results = []
@@ -445,12 +445,12 @@ class Brain
     ttl:(memState, StateValueIndex) ->
         # Predict the time when value i exceeds
         #types = ["linear","logarithmic","power","polynomial","exponential","lastvalue"]
+        #types = ["polynomial","linear","lastvalue"]
         types = ["linear","lastvalue"]
-        
         typeIndex=0
         while isNaN(predictedUnderload)
             type=types[typeIndex]
-            predictionLowLimit = @predict "time", @stateMin[StateValueIndex], type, StateValueIndex, memState
+            predictionLowLimit = @predict "time", @stateMin[StateValueIndex]*0.95, type, StateValueIndex, memState
             pLLpoints=predictionLowLimit[1]
             pLLLastpoint=pLLpoints[pLLpoints.length-1]
             predictedUnderload = pLLLastpoint[1]-memState[memState.length-1][0]
@@ -461,8 +461,8 @@ class Brain
         typeIndex=0
         while isNaN(predictedOverload)
             type=types[typeIndex]
-            predictionUpLimit = @predict "time", @stateMax[StateValueIndex], type, StateValueIndex, memState
-            pULpoints=predictionLowLimit[1]
+            predictionUpLimit = @predict "time", @stateMax[StateValueIndex]*1.05, type, StateValueIndex, memState
+            pULpoints=predictionUpLimit[1]
             pULLastpoint=pULpoints[pULpoints.length-1]
             predictedOverload = pULLastpoint[1]-memState[memState.length-1][0]
             typeIndex++
@@ -697,7 +697,7 @@ Me = new Brain
 
 ######################################## ENVIRONMENT ############################################
 lowerEnergy= ->
-    Me.battery += math.random(-10, 0)
+    Me.battery += math.random(-13, 10)
     # simulate physical boundaries of the battery
     if Me.battery>254
         Me.battery=254
