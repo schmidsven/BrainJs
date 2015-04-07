@@ -112,6 +112,7 @@ class Brain
         # Initialize state value limits
         @stateMax = []
         @stateMin = []
+        @birthdate=(new Date).getTime()/timeDivider
         @stateMin[1]=1              # Define the lowest energylevel
         # Initializing Memories of the Brain
         @memState = []              # Saving the states over time so we can predict
@@ -128,18 +129,26 @@ class Brain
         tempMeme = new Meme @, "Me.updateCurrentState();", @currentState
         # Plan for life
         @memPlan.push tempMeme
+        # initialise memState
+        @updateCurrentState()
+        @updateCurrentState()
+        @updateCurrentState()
         # first heartbeat
         @conciousness = setTimeout @live, @pulse
 
     getState: =>
         returnState = []
         state = []
-        time=(new Date).getTime()/timeDivider
-        state.push time
+        currenttime=(new Date).getTime()/timeDivider
+        # We measure time from birth @stateMin[0]
+        currenttime=currenttime-@birthdate
+        state.push currenttime
         state.push @battery
         state.push @battery/2
+        #state.push math.random(0,100)
         #state.push 55
-        bias = 0.00000001
+        bias = 0.0000001
+        # update maximum and minimum values
         for i in [0...state.length]
             if not @stateMax[i]?
                @stateMax[i] = state[i]+bias
@@ -149,6 +158,9 @@ class Brain
                 @stateMax[i] = state[i]
             if state[i] < @stateMin[i]
                 @stateMin[i] = state[i]
+            # override minimum
+            if @stateMin[i] < 0
+                @stateMin[i]=0
             returnState[i] = state[i]
         return returnState
 
@@ -446,65 +458,81 @@ class Brain
 
     ttl:(memState, StateValueIndex) ->
         # Predict the time when value i exceeds
-        predictionMatrix = math.transpose(@memState)
-        timeline = predictionMatrix[0]
-        predictionMatrix[0] = predictionMatrix[StateValueIndex]
-        predictionMatrix[StateValueIndex] = timeline
-        predictionMatrix = math.transpose(predictionMatrix)
-        predictedUnderload = @predict predictionMatrix, 0, 'linear', StateValueIndex
+        predictedUnderload = @predict "time", -0.5, 'linear', StateValueIndex
         predictedUnderload = predictedUnderload[1]-@currentState[0]
-        predictedOverload = @predict predictionMatrix, 1, 'linear', StateValueIndex        
+        predictedOverload = @predict "time", 0.5, 'linear', StateValueIndex        
         predictedOverload = predictedOverload[1]-@currentState[0]
         if predictedOverload < 0 and predictedUnderload < 0
             console.info "Let's make Art!!! #{predictedUnderload} #{predictedOverload}"
             return [[Infinity,0],[Infinity,1]]
         if predictedOverload > 0
-            console.info "We have #{Math.floor(predictedOverload*timeDivider/1000)}s to LOWER value nr:#{i}"
+            console.info "We have #{Math.floor(predictedOverload*timeDivider/1000)}s to LOWER value nr:#{StateValueIndex}"
             return [[Infinity,0],[predictedOverload,1]]
         if predictedUnderload > 0
-            console.info "We have #{Math.floor(predictedUnderload*timeDivider/1000)}s to RAISE value nr:#{i}"
+            console.info "We have #{Math.floor(predictedUnderload*timeDivider/1000)}s to RAISE value nr:#{StateValueIndex}"
             return [[predictedUnderload,0],[Infinity,1]]
 
-
+    # regularize the values of "state"
+    # using the calculated mean values of memState
     regularize: (state,memState)->
+        bias = 0.0000001
         returnState=[]
         tmemState=math.transpose(memState)
         for i in [0...state.length]
-            range=@stateMax[i]*@stateMin[i]
-            if state.length > 1
-                #mean=math.mean(tmemState[i])
-                #part=state[i]-mean
-                part=state[i]
-            else
-                part=state[i]
-            returnState.push(math.round(part/range,2))
+            range=@stateMax[i]-@stateMin[i]
+            mean=math.mean(tmemState[i])+bias
+            part=state[i]-mean
+            returnState.push(math.round(part/range,5))
         return returnState
 
-    predict: (inputData, x, regressionMethod, canvasDiv) =>
-        predictState = []
-        predictState.push x
-        predictState.push null
-        if inputData.length < 2
-            return @regularize(inputData[inputData.length-1],@memState)
-        inputData.push predictState
+    predict: (type, value, regressionMethod, index) =>
+
+        # regularize the whole dataset "inputData"
         regularized=[]
-        for state in inputData
+        for state in @memState
             regularizedState = @regularize(state,@memState) 
             regularized.push(regularizedState)
 
-        linear = regression(regressionMethod, regularized)
-        inputData.pop()
-        if x > 1 then x=""
-        if linear?
-            outputData = linear.points
-            divdings='#canvas'+canvasDiv+'_'+x
+        inputData=[]
+        tmemStateReg = math.transpose(regularized)
+        tmemState = math.transpose(@memState)
+        if type is "value"
+            # predict the value
+            inputData.push tmemState[0]
+            inputData.push tmemState[index]
+        else
+            # predict the time
+            inputData.push tmemStateReg[index]
+            inputData.push tmemState[0]
+
+        inputData = math.transpose(inputData)
+        #console.debug "inputData:",inputData
+        # Artificial state to predict
+        predictState = []
+        predictState.push value
+        predictState.push null
+        # return the last record if we have not enough data to create a prediction
+        if inputData.length < 2
+            console.warn "To young to predict"
+            return @memState[@memState.length-1]
+        # add the partially empty state
+        inputData.push predictState
+        prediction = regression(regressionMethod, inputData)
+        # draw the prediction on the canvas
+        if type is "value" then suffix = ""
+        if value is 0.5 then suffix = index+"HIGH"
+        if value is -0.5 then suffix = index+"LOW"
+        if prediction?
+            outputData = prediction.points
+            divdings='#canvas'+suffix
+            #console.debug "Drawing graph to #{divdings}"
             $.plot($(divdings.toString()), [
                 {data:inputData}
                 {data:outputData}
             ], options);
 
         else
-            console.warning "PREDICTION FAILED!"
+            console.warn "PREDICTION FAILED!"
             outputData = inputData
         return outputData[outputData.length-1]
 
@@ -527,16 +555,13 @@ class Brain
         meme.setTrust expectationError
         console.log "#{Math.round((meme.trust/@maxTrust)*100)}% matched expected! #{expectationError} "
         
-        # Predict the value at the next heartbeat
-        x = @stateMax[0]-@stateMin[0]+@pulse/timeDivider
-
-        predictionMatrix=[]
-        tmemState = math.transpose(@memState)
-        predictionMatrix.push tmemState[0]
-        predictionMatrix.push tmemState[1]
-        predictionMatrix = math.transpose(predictionMatrix)
-        predictedState = @predict(predictionMatrix, x, 'linear', "Beat")
-             
+        # Predict the value of index 1 at the next heartbeat
+        x = (@currentState[0])+(@pulse/timeDivider)
+        nextBeatState=[]
+        nextBeatState[0]=x
+        for i in [1...@currentState.length]
+            nextBeatValue = @predict "value", x, "linear", i
+            nextBeatState.push nextBeatValue[1]
         #------------------ save as a new meme in memory (experience)
         updatedMeme = new Meme meme, meme.task, @currentState
         updatedMeme.duration = meme.duration
@@ -547,31 +572,34 @@ class Brain
 
         idleTime = (@pulse/timeDivider)-meme.duration
 
-        valuesExceeding = no
-        valuesExceeded  = yes
-        regularizedState = @regularize(@currentState,@memState)
-        console.log @currentState
-        console.log regularizedState
-        console.log "currentStateAvg: #{math.mean(regularizedState)}"
-        if math.mean(regularizedState) > 0.01 and math.mean(regularizedState) < 0.9 
-            valuesExceeded  = no
+        regularizedNextState = @regularize(nextBeatState,@memState)
+        justTheValues=regularizedNextState.slice(0)
+        justTheValues.shift()
+
+        console.log "currentState:", @currentState
+        console.log "nextBeatState:", nextBeatState   
+        console.log "justTheValues:", justTheValues
+        console.log "regularizedNextState:", regularizedNextState
+
+        # check if any of the values will exceed
+        valuesExceeded  = no
+        if math.min(justTheValues) < -0.5
+            valuesExceeding = yes
+
+        if math.max(justTheValues) > 0.5
+            valuesExceeding = yes
+
+        # check if almost all of the values will exceed
+        health = math.std(justTheValues)
+        console.info "Health:",health
+        if health > 0
             @conciousness = setTimeout @live, @pulse
         else
             console.error "DEAD!"
             #@conciousness = setTimeout @live, @pulse
 
-
-        for i in [1...predictedState.length]
+        for i in [0...justTheValues.length]
             #########################################
-
-            if predictedState[i] < 0
-                valuesExceeding = yes
-                console.log "#{i}: sinking...dead in #{@pulse} ms "
-
-            if predictedState[i] > 1
-                valuesExceeding = yes
-                console.log "#{i}: raising...dead in #{@pulse} ms "
-
             if not valuesExceeding
                 # EFFECTIVE ---------------------------------
                 # find a point in @memState when energy was raised
@@ -595,7 +623,7 @@ class Brain
                 # if our selftrust is higher than the memetrust
                 # PLAN THE MEMES IN A NEW MEME! Not directly in the main @memPlan
                 
-                @ttl @memState, i, 
+                @ttl @memState, i+1
                 # predictionMeme = new Meme meme, meme.task, @currentState
                 # @memPlan.push predictionMeme
 
@@ -610,7 +638,7 @@ class Brain
             sumTrust += meme.trust
         @trust = sumTrust/@memOry.length
 
-        updatedMeme.expectedState = predictedState
+        updatedMeme.expectedState = nextBeatState
         @memPlan.push updatedMeme
 
         # adjust the pulse
@@ -672,7 +700,7 @@ Me = new Brain
 
 ######################################## ENVIRONMENT ############################################
 lowerEnergy= ->
-    Me.battery += math.random(-5, 0)
+    Me.battery += math.random(-15, 5)
 
 # Entropie
 setInterval lowerEnergy, 1000
