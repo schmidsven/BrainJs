@@ -1566,6 +1566,11 @@ boxBlurCanvasRGB = (id, top_x, top_y, width, height, radius, iterations) ->
         #console.log @currentState
         #console.log math.std @currentState
         #console.log math.var @currentState
+
+
+
+
+
 # -------------------------
 # -------------------------
 
