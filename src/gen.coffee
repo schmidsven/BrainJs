@@ -71,9 +71,10 @@ sigmoid = (t) ->
     exp = 1/(1+Math.exp(-t))
     #console.debug "sigmoid (#{t})= #{exp}"
     return exp
-# put energy to motor X
+
+# move body through space
 move: (direction)->
-    # syntheticaly update my state
+    # simulate energy consumption
     @state.energy-2
     console.log "move ***"
     if direction is undefined
@@ -82,12 +83,13 @@ move: (direction)->
         z = Math.floor(Math.random())
         direction = [x,y,z]
     return yes
-# put energy to voice (textoutput)
+
+# say something
 say: (text)->
-    # syntheticaly update my state
+    # simulate energy consumption
     @state.energy-2
     console.log "say ***"
-    # we say something random, that will reduce energy
+    # we say something random, until we know better
     possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
     if text is undefined
         text = possible.charAt Math.floor(Math.random() * possible.length)
@@ -100,10 +102,24 @@ say: (text)->
 #         radius: 3
 #         show: true
 
+
+# A thought or cascade of thoughts or concept
+# @trust:  I have a certain trust of the outcome ...
+# @origin: I know where this thought came about ...
+# @task:   Thinking is doing, a task is the smallest thing i can DO, the output!
+#          What i can do is defined by my "bodymuscles"
+# @duration: It's the duration the task took last time 
+# @expectedState: I expect a outcome of this which is a predicted(or guessed) state
+# @time: timestamp for the Idea (and the state)
+        # start TiIdeaasurement to find out duration of the task
+        # run the task
+        # for i in Idea.task
+        # find object
+        # is object a function?
 class Brain
     constructor: ->
         @id = generateUUID()
-        # The trust in myself and the initial value for trust in my memes/concepts
+        # The trust in myself and the initial value for trust in my concepts
         @trust = 200
         @maxTrust = 1
         @minTrust = 0.000000000001
@@ -120,15 +136,15 @@ class Brain
         @memPlan = []               # Future plan containing Memes (What to do, what state to expect)
         @currentState = @getState() # get all the input values and put them into an array
         # - - - - - - - - - - - - - - INCEPTION - - - - - - - - - - - - - - - - - - - - - -
-        # This meme means EATING! Since we don't have a environment yet that could transfer
-        # energy to us
         tempMeme = new Meme @, "origin.battery+=1; console.log('Ich esse!');", @currentState
         @memOry.push tempMeme
+        # This is the Idea of EATING!
+        # Since we don't have a environment yet that could transfer
+        # energy to us while we to the eating action
         ##---------------------------------------------------------------------------------
-        # This meme means MEDITATION!
         tempMeme = new Meme @, "Me.updateCurrentState();", @currentState
-        # Plan for life
         @memPlan.push tempMeme
+        # This is the Idea of body awareness, kind of our subconcious subroutines!
         # initialise memState
         @updateCurrentState()
         @updateCurrentState()
@@ -136,6 +152,7 @@ class Brain
         # first heartbeat
         @conciousness = setTimeout @live, @pulse
 
+    # Return all sensorvalues as an array
     getState: =>
         returnState = []
         state = []
@@ -144,7 +161,6 @@ class Brain
         currenttime=currenttime-@birthdate
         state.push currenttime
         state.push @battery
-        #state.push @battery/2
         state.push math.random(0,100)
         state.push 55
         bias = 0.5
@@ -558,28 +574,29 @@ class Brain
             if @currentState[i] < @stateMin[i]
                 @stateMin[i] = @currentState[i]
 
+        # simulate physical boundaries of the battery
 
     live: =>
-        # How much the state may differ from prediction
-        #------------------ Run the meme
+        #------------------ Run the Idea
         startTime = (new Date).getTime()/timeDivider
         meme = @memPlan.shift()
         if not meme?
             return
         else
             console.log "----------------------------------------------------------------------"
-            #console.debug meme
         # run the planed task
         console.log "Run Task: ",meme.task
         meme.run()
         expectationError = @checkState @currentState, meme.expectedState
         meme.setTrust expectationError
         console.log "#{Math.round((meme.trust/@maxTrust)*100)}% matched expected! #{expectationError} "
+        # How much the state may differ from prediction
         
-        #---------- Predict the values for the next heartbeat -----
+        # Predict the point in lifetime for the next heartbeat
         nextBeat = (@currentState[0])+(@pulse/timeDivider)
         nextBeatState=[]
         nextBeatState[0]=nextBeat
+        # Predict the other statevalues for the next heartbeat
         for i in [1...@currentState.length]
             nextBeatValue = @predict "value", nextBeat, "linear", i, @memState
             nBVpoints=nextBeatValue[1]
@@ -592,9 +609,7 @@ class Brain
         @memOry.push updatedMeme
         @memPlan.push updatedMeme
 
-        #----------- Predict if we hit a limit -------------------
-        #----------- I want to hit no limit ----------------------
-        # comparing, predicting, planing, and optimizing
+        # Plan the current idea again
         console.log "currentState:", @currentState
         console.log "nextBeatState:", nextBeatState   
         # Find out what i want
@@ -607,6 +622,10 @@ class Brain
         for i in [1...@currentState.length]
             timeleft = @ttl @memState, i
             timeleft = math.min(timeleft)
+            # If our (worst)predicted lifetime ends before infinity
+            # and we won't die with the next heartbeat,
+            # then we set our next goal a.k.a. diff from current state
+            # Otherwise we won't change a thing! 
             if timeleft < Infinity and timeleft > 0
                 timelefts.push timeleft
                 diff = nextBeatState[i]-@currentState[i]
@@ -616,25 +635,28 @@ class Brain
         wantedDiff.unshift math.min(timelefts)
         console.log "I want: ",wantedDiff
         #@findDiff wantedDiff
-        #regulationMeme = new Meme meme, meme.task, @currentState
-        # @memPlan.push regulationMeme
+        #regulationIdea = new Idea Idea, Idea.task, @currentState
+        # @memPlan.push regulationIdea
 
-        #-------------------- updating my shit ---------------------
+        # Update my Ghost
         # Adjust memState.length in respect of the pulse
         # so i have nearly everytime the same timespan of data for prediction
         while @memState.length > 5*(12-math.sqrt(@pulse)/3)
             @memState.shift()
 
-        # Update my poise
+        # Update my poise (trust in myself)
         sumTrust=0
         for meme in @memOry
             sumTrust += meme.trust
         @trust = sumTrust/@memOry.length
         
-        # Update my limits
         @updateLimits()
 
-        # XXX no computing if battery is empty 
+        ##---------------------------------------------------------------------------------
+        ##           THIS IS FAKESTUFF NEEDED AS LONG AS THIS IS SOFTWARE
+        ##---------------------------------------------------------------------------------
+        # Entropy
+        # No computing if battery is empty 
         if @battery > 0
             @conciousness = setTimeout @live, @pulse
         else
@@ -645,14 +667,6 @@ class Brain
         #-----------------------------------------------------------
 
     
-# A thought or cascade of thoughts or concept
-# @trust:  I have a certain trust of the outcome ...
-# @origin: I know where this thought came about ...
-# @task:   Thinking is doing, a task is the smallest thing i can DO, the output!
-#          What i can do is defined by my "bodymuscles"
-# @duration: It's the duration the task took last time 
-# @expectedState: I expect a outcome of this which is a predicted(or guessed) state
-# @time: timestamp for the meme (and the state)
 class Meme 
     constructor: (origin,task,expectedState) ->
         @id = generateUUID()
@@ -666,10 +680,7 @@ class Meme
         @time = (new Date).getTime()/timeDivider
     
     run: =>
-        # start Timemeasurement to find out duration of the task
         startTime = (new Date).getTime()/timeDivider
-        # run the task
-        # for i in meme.task
         eval(@task)
         endTime = (new Date).getTime()/timeDivider
         @duration = endTime-startTime
@@ -691,20 +702,13 @@ timeDivider=1000
 Me = new Brain
 
 
-##---------------------------------------------------------------------------------
-##           THIS IS FAKESTUFF NEEDED AS LONG AS THIS IS SOFTWARE
-##---------------------------------------------------------------------------------
-
-######################################## ENVIRONMENT ############################################
 lowerEnergy= ->
     Me.battery += math.random(-13, 10)
-    # simulate physical boundaries of the battery
     if Me.battery>254
         Me.battery=254
     if Me.battery<0
         Me.battery=0
 
-# Entropie
 setInterval lowerEnergy, 1000
 
 cutColumn = (matrix,index) ->
@@ -771,6 +775,9 @@ normalequation = (x,y) ->
     theta = math.multiply(math.multiply(xtxi, xt), y)
     return theta
 
+      # NOTE: this part is supposedly only needed if you want to work with local files
+      # so it might be okay to remove the whole try/catch block and just use
+      # imageData = context.getImageData( top_x, top_y, width, height );
 
 
 
@@ -798,18 +805,18 @@ normalequation = (x,y) ->
 # try something random
 
 # EFFICIENT ---------------------------------
-# find a meme with nearly the same timestamp
-# save the found meme into an array
-# check the trust of this meme
+# find a Idea with nearly the same timestamp
+# save the found Idea into an array
+# check the trust of this Idea
 
 # PREDICT -------------------------------------
 # Find out how much time we have before we hit min
 # Find out how many cycles that is with the current pulse
 
 # For i in cycles
-# plan memes as found in above
-# if our selftrust is higher than the memetrust
-# PLAN THE MEMES IN A NEW MEME! Not directly in the main @memPlan
+# plan Ideas as found in above
+# if our selftrust is higher than the Ideatrust
+# PLAN THE IdeaS IN A NEW Idea! Not directly in the main @memPlan
 
 Data1:      [0  ,0  ,0  ,0  ,0 ]
 Prediction: [0  ,0  ,0  ,0  ,0 ]
@@ -1024,3 +1031,57 @@ As long as i have a plan of a continous energy refill for the shorter time perio
 
 
 ###
+
+###
+# Thanks to...
+*
+* Regression.JS - Regression functions for javascript
+* http://tom-alexander.github.com/regression-js/
+* 
+* copyright(c) 2013 Tom Alexander
+* Licensed under the MIT license.
+*
+*
+###
+
+###
+
+Superfast Blur - a fast Box Blur For Canvas
+
+Version:    0.5
+Author:     Mario Klingemann
+Contact:    mario@quasimondo.com
+Website:    http://www.quasimondo.com/BoxBlurForCanvas
+Twitter:    @quasimondo
+
+In case you find this class useful - especially in commercial projects -
+I am not totally unhappy for a small donation to my PayPal account
+mario@quasimondo.de
+
+Or support me on flattr:
+https://flattr.com/thing/140066/Superfast-Blur-a-pretty-fast-Box-Blur-Effect-for-CanvasJavascript
+
+Copyright (c) 2011 Mario Klingemann
+
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation
+files (the "Software"), to deal in the Software without
+restriction, including without limitation the rights to use,
+copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+###
+
