@@ -7,30 +7,33 @@
             .meterbox{display:inline-block;position:relative!important;border:solid 1px;padding:10px;}
             .meter{width:430px;height:270px;font-family: arial; font-size: 70%;}        
         </style>
-        <script type="text/javascript" src="http://www.pureexample.com/js/lib/jquery-1.8.3.min.js"></script>
-        <script type="text/javascript" src="http://www.pureexample.com/js/flot/jquery.flot.min.js"></script>
-        <script type="text/javascript" src="http://www.pureexample.com/js/flot/jquery.flot.symbol.js"></script>
-        <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/1.4.0/math.min.js"></script>
-        <script type="text/javascript" src="static/gen.js"></script>
+        <script type="text/javascript" src="static/jquery-1.8.3.min.js"></script>
+        <script type="text/javascript" src="static/jquery.flot.min.js"></script>
+        <script type="text/javascript" src="static/jquery.flot.symbol.js"></script>
+        <script type="text/javascript" src="static/math.min.js"></script>
     </head>
     <body>
     <h1>Prediction</h1>
         <div class="meterbox">
-            <h1>1 </h1>
+            <h1>1 Body Energy</h1>
             <div class="meter" id="canvas1"></div>
         </div>    
         <div class="meterbox">
-            <h1>2 </h1>
+            <h1>2 Random</h1>
             <div class="meter" id="canvas2"></div>
         </div>    
         <div class="meterbox">
-            <h1>3 </h1>
+            <h1>3 Fixed</h1>
             <div class="meter" id="canvas3"></div>
         </div>    
         <div class="meterbox">
-            <h1>4 </h1>
+            <h1>4 Random</h1>
             <div class="meter" id="canvas4"></div>
         </div>    
+        <canvas class="meterbox" id="imagebox" width="430", height="270">
+            Random Canvas
+        </canvas>
+        <script type="text/javascript" src="static/gen.js"></script>
     </body>
 </html>
 
