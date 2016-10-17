@@ -1,40 +1,5 @@
 
 
-# attach the .equals method to Array's prototype to call it on any array
-Array::equals = (array) ->
-  # if the other array is a falsy value, return
-  if !array
-    return false
-  # compare lengths - can save a lot of time 
-  if @length != array.length
-    return false
-  i = 0
-  l = @length
-  while i < l
-    # Check if we have nested arrays
-    if @[i] instanceof Array and array[i] instanceof Array
-      # recurse into the nested arrays
-      if !@[i].equals(array[i])
-        return false
-    else if @[i] != array[i]
-      # Warning - two different object instances will never be equal: {x:20} != {x:20}
-      return false
-    i++
-  true
-
-Array::diff = (array) ->
-    # if the other array is a falsy value, return
-    if !array
-        return "!array"
-    # compare lengths - can save a lot of time 
-    if @length != array.length
-        return "@length != array.length"
-    i = 0
-    l = @length
-    returnArray = []
-    while i < l
-        returnArray[i] =  @[i] - array[i]
-    return returnArray
 
 between = (a, b) ->
   if a > b
