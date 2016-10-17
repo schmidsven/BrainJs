@@ -1,14 +1,3 @@
-###
-# Thanks to...
-*
-* Regression.JS - Regression functions for javascript
-* http://tom-alexander.github.com/regression-js/
-* 
-* copyright(c) 2013 Tom Alexander
-* Licensed under the MIT license.
-*
-*
-###
 
 
 # attach the .equals method to Array's prototype to call it on any array
@@ -111,14 +100,51 @@ say: (text)->
 # @duration: It's the duration the task took last time 
 # @expectedState: I expect a outcome of this which is a predicted(or guessed) state
 # @time: timestamp for the Idea (and the state)
+class Idea 
+    constructor: (origin,task,expectedState) ->
+        @id = generateUUID()
+        @trust = origin.trust
+        @maxTrust = origin.maxTrust
+        @minTrust = origin.minTrust
+        @origin = origin.id
+        @task = task
+        @duration = undefined
+        @expectedState = expectedState
+        @time = (new Date).getTime()/timeDivider
+    
+    run: =>
         # start TiIdeaasurement to find out duration of the task
+        startTime = (new Date).getTime()/timeDivider
         # run the task
         # for i in Idea.task
+        fnparams = [
+          1
+          2
+          3
+        ]
         # find object
+        window[@origin][@task]()
         # is object a function?
+        if typeof fn == 'function'
+          fn.apply null, fnparams
+
+        endTime = (new Date).getTime()/timeDivider
+        @duration = endTime-startTime
+        console.log "Task Duration: #{@duration}"
+
+    setTrust: (addtrust) =>
+        @trust = 2*(addtrust*@maxTrust)
+        if @trust <= @minTrust 
+            @trust = @minTrust
+        if @trust > @maxTrust 
+            @trust = @maxTrust
+ 
+
+
+
 class Brain
     constructor: ->
-        @id = generateUUID()
+        @id = "Me"
         # The trust in myself and the initial value for trust in my concepts
         @trust = 200
         @maxTrust = 1
@@ -132,19 +158,19 @@ class Brain
         @stateMin[1]=1              # Define the lowest energylevel
         # Initializing Memories of the Brain
         @memState = []              # Saving the states over time so we can predict
-        @memOry = []                # Longterm Memory containing Memes (What was done, how was the state)
-        @memPlan = []               # Future plan containing Memes (What to do, what state to expect)
+        @memOry = {}               # Longterm Memory containing Ideas (What was done, how was the state)
+        @memPlan = []               # Future plan containing Ideas (What to do, what state to expect)
         @currentState = @getState() # get all the input values and put them into an array
         # - - - - - - - - - - - - - - INCEPTION - - - - - - - - - - - - - - - - - - - - - -
-        tempMeme = new Meme @, "origin.battery+=1; console.log('Ich esse!');", @currentState
-        @memOry.push tempMeme
         # This is the Idea of EATING!
         # Since we don't have a environment yet that could transfer
         # energy to us while we to the eating action
+        tempIdea = new Idea @, "origin.battery+=1; console.log('Ich esse!');", @currentState
+        @memOry[tempIdea.id] = tempIdea
         ##---------------------------------------------------------------------------------
-        tempMeme = new Meme @, "Me.updateCurrentState();", @currentState
-        @memPlan.push tempMeme
         # This is the Idea of body awareness, kind of our subconcious subroutines!
+        tempIdea = new Idea @, "updateCurrentState", @currentState
+        @memPlan.push tempIdea
         # initialise memState
         @updateCurrentState()
         @updateCurrentState()
@@ -158,12 +184,12 @@ class Brain
         state = []
         currenttime=(new Date).getTime()/timeDivider
         # We measure time from birth @stateMin[0]
-        currenttime=currenttime-@birthdate
-        state.push currenttime
-        state.push @battery
-        state.push math.random(0,100)
-        state.push 55
-        bias = 0.5
+        lifetime=currenttime-@birthdate
+        state.push lifetime           # 0: my lifetime
+        state.push @battery           # 1: my energy
+        state.push math.random(0,100) # 2: my 1-sense-value
+        state.push 55                 # 3: my 2-sense-value
+        state.push lifetime*math.random(0,10) # 4: my 3-sense-value
         return state
 
     gaussianElimination = (a, o) ->
@@ -574,23 +600,33 @@ class Brain
             if @currentState[i] < @stateMin[i]
                 @stateMin[i] = @currentState[i]
 
+    changeEnergyBy: (energyValue) =>
+        @battery += energyValue
         # simulate physical boundaries of the battery
+        if @battery>254
+            @battery=254
+        if @battery<0
+            @battery=0
+        return @battery
+
+
 
     live: =>
+        updatedIdea = null
         #------------------ Run the Idea
         startTime = (new Date).getTime()/timeDivider
-        meme = @memPlan.shift()
-        if not meme?
+        currentIdea = @memPlan.shift()
+        if not currentIdea?
             return
         else
             console.log "----------------------------------------------------------------------"
         # run the planed task
-        console.log "Run Task: ",meme.task
-        meme.run()
-        expectationError = @checkState @currentState, meme.expectedState
-        meme.setTrust expectationError
-        console.log "#{Math.round((meme.trust/@maxTrust)*100)}% matched expected! #{expectationError} "
+        console.log "Run Task: ",currentIdea.task
+        currentIdea.run(@)
         # How much the state may differ from prediction
+        expectationError = @checkState @currentState, currentIdea.expectedState
+        currentIdea.setTrust expectationError
+        console.log "#{Math.round((currentIdea.trust/@maxTrust)*100)}% matched expected! #{expectationError} "
         
         # Predict the point in lifetime for the next heartbeat
         nextBeat = (@currentState[0])+(@pulse/timeDivider)
@@ -603,13 +639,13 @@ class Brain
             nBVlastPoint=nBVpoints[nBVpoints.length-1]
             nextBeatState.push nBVlastPoint[1]
 
-        updatedMeme = new Meme meme, meme.task, @currentState
-        updatedMeme.duration = meme.duration
-        updatedMeme.expectedState = nextBeatState
-        @memOry.push updatedMeme
-        @memPlan.push updatedMeme
-
         # Plan the current idea again
+        updatedIdea = new Idea @, currentIdea.task, @currentState
+        updatedIdea.duration = currentIdea.duration
+        updatedIdea.expectedState = nextBeatState
+        @memOry[currentIdea.id] = updatedIdea
+        @memPlan.push updatedIdea
+        console.log "memOry:", @memOry        
         console.log "currentState:", @currentState
         console.log "nextBeatState:", nextBeatState   
         # Find out what i want
@@ -646,53 +682,30 @@ class Brain
 
         # Update my poise (trust in myself)
         sumTrust=0
-        for meme in @memOry
-            sumTrust += meme.trust
+        for anyIdea in @memOry
+            sumTrust += anyIdea.trust
         @trust = sumTrust/@memOry.length
+        console.log "Poise:", @trust
+        console.log "currentIdea:", currentIdea.trust
+
+        endTime = (new Date).getTime()/timeDivider
+        console.log "Beat Duration: #{endTime-startTime}"
         
-        @updateLimits()
 
         ##---------------------------------------------------------------------------------
         ##           THIS IS FAKESTUFF NEEDED AS LONG AS THIS IS SOFTWARE
         ##---------------------------------------------------------------------------------
         # Entropy
+        setInterval @changeEnergyBy(math.random(-1, 0)), 1000
         # No computing if battery is empty 
         if @battery > 0
             @conciousness = setTimeout @live, @pulse
         else
             console.error "DEAD!"
-
-        endTime = (new Date).getTime()/timeDivider
-        console.log "Beat Duration: #{endTime-startTime}"
+        return "Alive!"
         #-----------------------------------------------------------
 
     
-class Meme 
-    constructor: (origin,task,expectedState) ->
-        @id = generateUUID()
-        @trust = origin.trust
-        @maxTrust = origin.maxTrust
-        @minTrust = origin.minTrust
-        @origin = origin.id
-        @task = task
-        @duration = undefined
-        @expectedState = expectedState
-        @time = (new Date).getTime()/timeDivider
-    
-    run: =>
-        startTime = (new Date).getTime()/timeDivider
-        eval(@task)
-        endTime = (new Date).getTime()/timeDivider
-        @duration = endTime-startTime
-        console.log "Task Duration: #{@duration}"
-
-    setTrust: (addtrust) =>
-        @trust = 2*(addtrust*@maxTrust)
-        if @trust <= @minTrust 
-            @trust = @minTrust
-        if @trust > @maxTrust 
-            @trust = @maxTrust
- 
 
 ######################################## GENE ###################################################
 
@@ -700,16 +713,6 @@ class Meme
 timeDivider=1000
 # Me is born
 Me = new Brain
-
-
-lowerEnergy= ->
-    Me.battery += math.random(-13, 10)
-    if Me.battery>254
-        Me.battery=254
-    if Me.battery<0
-        Me.battery=0
-
-setInterval lowerEnergy, 1000
 
 cutColumn = (matrix,index) ->
     column = matrix.subset(math.index([0, matrix._size[0]], index))
@@ -774,10 +777,815 @@ normalequation = (x,y) ->
     xtxi =  math.inv(math.multiply(xt,x))
     theta = math.multiply(math.multiply(xtxi, xt), y)
     return theta
+    
+setPixel = (imageData, x, y, r, g, b, a) ->
+  index = (x + y * imageData.width) * 4
+  imageData.data[index + 0] = r
+  imageData.data[index + 1] = g
+  imageData.data[index + 2] = b
+  imageData.data[index + 3] = a
+  return
 
+
+mul_table = [
+  1
+  57
+  41
+  21
+  203
+  34
+  97
+  73
+  227
+  91
+  149
+  62
+  105
+  45
+  39
+  137
+  241
+  107
+  3
+  173
+  39
+  71
+  65
+  238
+  219
+  101
+  187
+  87
+  81
+  151
+  141
+  133
+  249
+  117
+  221
+  209
+  197
+  187
+  177
+  169
+  5
+  153
+  73
+  139
+  133
+  127
+  243
+  233
+  223
+  107
+  103
+  99
+  191
+  23
+  177
+  171
+  165
+  159
+  77
+  149
+  9
+  139
+  135
+  131
+  253
+  245
+  119
+  231
+  224
+  109
+  211
+  103
+  25
+  195
+  189
+  23
+  45
+  175
+  171
+  83
+  81
+  79
+  155
+  151
+  147
+  9
+  141
+  137
+  67
+  131
+  129
+  251
+  123
+  30
+  235
+  115
+  113
+  221
+  217
+  53
+  13
+  51
+  50
+  49
+  193
+  189
+  185
+  91
+  179
+  175
+  43
+  169
+  83
+  163
+  5
+  79
+  155
+  19
+  75
+  147
+  145
+  143
+  35
+  69
+  17
+  67
+  33
+  65
+  255
+  251
+  247
+  243
+  239
+  59
+  29
+  229
+  113
+  111
+  219
+  27
+  213
+  105
+  207
+  51
+  201
+  199
+  49
+  193
+  191
+  47
+  93
+  183
+  181
+  179
+  11
+  87
+  43
+  85
+  167
+  165
+  163
+  161
+  159
+  157
+  155
+  77
+  19
+  75
+  37
+  73
+  145
+  143
+  141
+  35
+  138
+  137
+  135
+  67
+  33
+  131
+  129
+  255
+  63
+  250
+  247
+  61
+  121
+  239
+  237
+  117
+  29
+  229
+  227
+  225
+  111
+  55
+  109
+  216
+  213
+  211
+  209
+  207
+  205
+  203
+  201
+  199
+  197
+  195
+  193
+  48
+  190
+  47
+  93
+  185
+  183
+  181
+  179
+  178
+  176
+  175
+  173
+  171
+  85
+  21
+  167
+  165
+  41
+  163
+  161
+  5
+  79
+  157
+  78
+  154
+  153
+  19
+  75
+  149
+  74
+  147
+  73
+  144
+  143
+  71
+  141
+  140
+  139
+  137
+  17
+  135
+  134
+  133
+  66
+  131
+  65
+  129
+  1
+]
+shg_table = [
+  0
+  9
+  10
+  10
+  14
+  12
+  14
+  14
+  16
+  15
+  16
+  15
+  16
+  15
+  15
+  17
+  18
+  17
+  12
+  18
+  16
+  17
+  17
+  19
+  19
+  18
+  19
+  18
+  18
+  19
+  19
+  19
+  20
+  19
+  20
+  20
+  20
+  20
+  20
+  20
+  15
+  20
+  19
+  20
+  20
+  20
+  21
+  21
+  21
+  20
+  20
+  20
+  21
+  18
+  21
+  21
+  21
+  21
+  20
+  21
+  17
+  21
+  21
+  21
+  22
+  22
+  21
+  22
+  22
+  21
+  22
+  21
+  19
+  22
+  22
+  19
+  20
+  22
+  22
+  21
+  21
+  21
+  22
+  22
+  22
+  18
+  22
+  22
+  21
+  22
+  22
+  23
+  22
+  20
+  23
+  22
+  22
+  23
+  23
+  21
+  19
+  21
+  21
+  21
+  23
+  23
+  23
+  22
+  23
+  23
+  21
+  23
+  22
+  23
+  18
+  22
+  23
+  20
+  22
+  23
+  23
+  23
+  21
+  22
+  20
+  22
+  21
+  22
+  24
+  24
+  24
+  24
+  24
+  22
+  21
+  24
+  23
+  23
+  24
+  21
+  24
+  23
+  24
+  22
+  24
+  24
+  22
+  24
+  24
+  22
+  23
+  24
+  24
+  24
+  20
+  23
+  22
+  23
+  24
+  24
+  24
+  24
+  24
+  24
+  24
+  23
+  21
+  23
+  22
+  23
+  24
+  24
+  24
+  22
+  24
+  24
+  24
+  23
+  22
+  24
+  24
+  25
+  23
+  25
+  25
+  23
+  24
+  25
+  25
+  24
+  22
+  25
+  25
+  25
+  24
+  23
+  24
+  25
+  25
+  25
+  25
+  25
+  25
+  25
+  25
+  25
+  25
+  25
+  25
+  23
+  25
+  23
+  24
+  25
+  25
+  25
+  25
+  25
+  25
+  25
+  25
+  25
+  24
+  22
+  25
+  25
+  23
+  25
+  25
+  20
+  24
+  25
+  24
+  25
+  25
+  22
+  24
+  25
+  24
+  25
+  24
+  25
+  25
+  24
+  25
+  25
+  25
+  25
+  22
+  25
+  25
+  25
+  24
+  25
+  24
+  25
+  18
+]
+
+boxBlurImage = (imageID, canvasID, radius, blurAlphaChannel, iterations) ->
+  img = document.getElementById(imageID)
+  w = img.naturalWidth
+  h = img.naturalHeight
+  canvas = document.getElementById(canvasID)
+  canvas.style.width = w + 'px'
+  canvas.style.height = h + 'px'
+  canvas.width = w
+  canvas.height = h
+  context = canvas.getContext('2d')
+  context.clearRect 0, 0, w, h
+  context.drawImage img, 0, 0
+  if isNaN(radius) or radius < 1
+    return
+  if blurAlphaChannel
+    boxBlurCanvasRGBA canvasID, 0, 0, w, h, radius, iterations
+  else
+    boxBlurCanvasRGB canvasID, 0, 0, w, h, radius, iterations
+  return
+
+boxBlurCanvasRGBA = (id, top_x, top_y, width, height, radius, iterations) ->
+  if isNaN(radius) or radius < 1
+    return
+  radius |= 0
+  if isNaN(iterations)
+    iterations = 1
+  iterations |= 0
+  if iterations > 3
+    iterations = 3
+  if iterations < 1
+    iterations = 1
+  canvas = document.getElementById(id)
+  context = canvas.getContext('2d')
+  imageData = undefined
+  try
+    try
+      imageData = context.getImageData(top_x, top_y, width, height)
+    catch e
       # NOTE: this part is supposedly only needed if you want to work with local files
       # so it might be okay to remove the whole try/catch block and just use
       # imageData = context.getImageData( top_x, top_y, width, height );
+      try
+        netscape.security.PrivilegeManager.enablePrivilege 'UniversalBrowserRead'
+        imageData = context.getImageData(top_x, top_y, width, height)
+      catch e
+        alert 'Cannot access local image'
+        throw new Error('unable to access local image data: ' + e)
+        return
+  catch e
+    alert 'Cannot access image'
+    throw new Error('unable to access image data: ' + e)
+    return
+  pixels = imageData.data
+  rsum = undefined
+  gsum = undefined
+  bsum = undefined
+  asum = undefined
+  x = undefined
+  y = undefined
+  i = undefined
+  p = undefined
+  p1 = undefined
+  p2 = undefined
+  yp = undefined
+  yi = undefined
+  yw = undefined
+  idx = undefined
+  pa = undefined
+  wm = width - 1
+  hm = height - 1
+  wh = width * height
+  rad1 = radius + 1
+  mul_sum = mul_table[radius]
+  shg_sum = shg_table[radius]
+  r = []
+  g = []
+  b = []
+  a = []
+  vmin = []
+  vmax = []
+  while iterations-- > 0
+    yw = yi = 0
+    y = 0
+    while y < height
+      rsum = pixels[yw] * rad1
+      gsum = pixels[yw + 1] * rad1
+      bsum = pixels[yw + 2] * rad1
+      asum = pixels[yw + 3] * rad1
+      i = 1
+      while i <= radius
+        p = yw + ((if i > wm then wm else i) << 2)
+        rsum += pixels[p++]
+        gsum += pixels[p++]
+        bsum += pixels[p++]
+        asum += pixels[p]
+        i++
+      x = 0
+      while x < width
+        r[yi] = rsum
+        g[yi] = gsum
+        b[yi] = bsum
+        a[yi] = asum
+        if y == 0
+          vmin[x] = (if (p = x + rad1) < wm then p else wm) << 2
+          vmax[x] = if (p = x - radius) > 0 then p << 2 else 0
+        p1 = yw + vmin[x]
+        p2 = yw + vmax[x]
+        rsum += pixels[p1++] - pixels[p2++]
+        gsum += pixels[p1++] - pixels[p2++]
+        bsum += pixels[p1++] - pixels[p2++]
+        asum += pixels[p1] - pixels[p2]
+        yi++
+        x++
+      yw += width << 2
+      y++
+    x = 0
+    while x < width
+      yp = x
+      rsum = r[yp] * rad1
+      gsum = g[yp] * rad1
+      bsum = b[yp] * rad1
+      asum = a[yp] * rad1
+      i = 1
+      while i <= radius
+        yp += if i > hm then 0 else width
+        rsum += r[yp]
+        gsum += g[yp]
+        bsum += b[yp]
+        asum += a[yp]
+        i++
+      yi = x << 2
+      y = 0
+      while y < height
+        pixels[yi + 3] = pa = asum * mul_sum >>> shg_sum
+        if pa > 0
+          pa = 255 / pa
+          pixels[yi] = (rsum * mul_sum >>> shg_sum) * pa
+          pixels[yi + 1] = (gsum * mul_sum >>> shg_sum) * pa
+          pixels[yi + 2] = (bsum * mul_sum >>> shg_sum) * pa
+        else
+          pixels[yi] = pixels[yi + 1] = pixels[yi + 2] = 0
+        if x == 0
+          vmin[y] = (if (p = y + rad1) < hm then p else hm) * width
+          vmax[y] = if (p = y - radius) > 0 then p * width else 0
+        p1 = x + vmin[y]
+        p2 = x + vmax[y]
+        rsum += r[p1] - r[p2]
+        gsum += g[p1] - g[p2]
+        bsum += b[p1] - b[p2]
+        asum += a[p1] - a[p2]
+        yi += width << 2
+        y++
+      x++
+  context.putImageData imageData, top_x, top_y
+  return
+
+boxBlurCanvasRGB = (id, top_x, top_y, width, height, radius, iterations) ->
+  if isNaN(radius) or radius < 1
+    return
+  radius |= 0
+  if isNaN(iterations)
+    iterations = 1
+  iterations |= 0
+  if iterations > 3
+    iterations = 3
+  if iterations < 1
+    iterations = 1
+  canvas = document.getElementById(id)
+  context = canvas.getContext('2d')
+  imageData = undefined
+  try
+    try
+      imageData = context.getImageData(top_x, top_y, width, height)
+    catch e
+      # NOTE: this part is supposedly only needed if you want to work with local files
+      # so it might be okay to remove the whole try/catch block and just use
+      # imageData = context.getImageData( top_x, top_y, width, height );
+      try
+        netscape.security.PrivilegeManager.enablePrivilege 'UniversalBrowserRead'
+        imageData = context.getImageData(top_x, top_y, width, height)
+      catch e
+        alert 'Cannot access local image'
+        throw new Error('unable to access local image data: ' + e)
+        return
+  catch e
+    alert 'Cannot access image'
+    throw new Error('unable to access image data: ' + e)
+    return
+  pixels = imageData.data
+  rsum = undefined
+  gsum = undefined
+  bsum = undefined
+  asum = undefined
+  x = undefined
+  y = undefined
+  i = undefined
+  p = undefined
+  p1 = undefined
+  p2 = undefined
+  yp = undefined
+  yi = undefined
+  yw = undefined
+  idx = undefined
+  wm = width - 1
+  hm = height - 1
+  wh = width * height
+  rad1 = radius + 1
+  r = []
+  g = []
+  b = []
+  mul_sum = mul_table[radius]
+  shg_sum = shg_table[radius]
+  vmin = []
+  vmax = []
+  while iterations-- > 0
+    yw = yi = 0
+    y = 0
+    while y < height
+      rsum = pixels[yw] * rad1
+      gsum = pixels[yw + 1] * rad1
+      bsum = pixels[yw + 2] * rad1
+      i = 1
+      while i <= radius
+        p = yw + ((if i > wm then wm else i) << 2)
+        rsum += pixels[p++]
+        gsum += pixels[p++]
+        bsum += pixels[p++]
+        i++
+      x = 0
+      while x < width
+        r[yi] = rsum
+        g[yi] = gsum
+        b[yi] = bsum
+        if y == 0
+          vmin[x] = (if (p = x + rad1) < wm then p else wm) << 2
+          vmax[x] = if (p = x - radius) > 0 then p << 2 else 0
+        p1 = yw + vmin[x]
+        p2 = yw + vmax[x]
+        rsum += pixels[p1++] - pixels[p2++]
+        gsum += pixels[p1++] - pixels[p2++]
+        bsum += pixels[p1++] - pixels[p2++]
+        yi++
+        x++
+      yw += width << 2
+      y++
+    x = 0
+    while x < width
+      yp = x
+      rsum = r[yp] * rad1
+      gsum = g[yp] * rad1
+      bsum = b[yp] * rad1
+      i = 1
+      while i <= radius
+        yp += if i > hm then 0 else width
+        rsum += r[yp]
+        gsum += g[yp]
+        bsum += b[yp]
+        i++
+      yi = x << 2
+      y = 0
+      while y < height
+        pixels[yi] = rsum * mul_sum >>> shg_sum
+        pixels[yi + 1] = gsum * mul_sum >>> shg_sum
+        pixels[yi + 2] = bsum * mul_sum >>> shg_sum
+        if x == 0
+          vmin[y] = (if (p = y + rad1) < hm then p else hm) * width
+          vmax[y] = if (p = y - radius) > 0 then p * width else 0
+        p1 = x + vmin[y]
+        p2 = x + vmax[y]
+        rsum += r[p1] - r[p2]
+        gsum += g[p1] - g[p2]
+        bsum += b[p1] - b[p2]
+        yi += width << 2
+        y++
+      x++
+  context.putImageData imageData, top_x, top_y
+  return
+
+# ---
+# generated by js2coffee 2.0.3
 
 
 
